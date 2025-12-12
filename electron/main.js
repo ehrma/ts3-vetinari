@@ -7,6 +7,9 @@ const { autoUpdater } = require('electron-updater')
 autoUpdater.autoDownload = false
 autoUpdater.autoInstallOnAppQuit = true
 
+let mainWindow = null
+let updateDownloaded = false
+
 let store = null
 async function getStore() {
   if (!store) {
@@ -66,7 +69,7 @@ async function addLogEntry(connectionId, type, message, data = {}) {
 }
 
 function createWindow() {
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     title: 'TS3 Vetinari',
@@ -107,35 +110,29 @@ app.whenReady().then(() => {
   })
 })
 
-// Auto-updater events
-autoUpdater.on('update-available', (info) => {
-  dialog.showMessageBox({
-    type: 'info',
-    title: 'Update Available',
-    message: `A new version (${info.version}) is available. Would you like to download it now?`,
-    buttons: ['Download', 'Later']
-  }).then((result) => {
-    if (result.response === 0) {
-      autoUpdater.downloadUpdate()
-    }
-  })
+// Auto-updater events - send to renderer for UI updates
+autoUpdater.on('download-progress', (progressObj) => {
+  if (mainWindow) {
+    mainWindow.webContents.send('update-download-progress', {
+      percent: progressObj.percent,
+      transferred: progressObj.transferred,
+      total: progressObj.total
+    })
+  }
 })
 
 autoUpdater.on('update-downloaded', (info) => {
-  dialog.showMessageBox({
-    type: 'info',
-    title: 'Update Ready',
-    message: `Version ${info.version} has been downloaded. The application will restart to install the update.`,
-    buttons: ['Restart Now', 'Later']
-  }).then((result) => {
-    if (result.response === 0) {
-      autoUpdater.quitAndInstall()
-    }
-  })
+  updateDownloaded = true
+  if (mainWindow) {
+    mainWindow.webContents.send('update-downloaded', { version: info.version })
+  }
 })
 
 autoUpdater.on('error', (error) => {
   console.log('Auto-updater error:', error.message)
+  if (mainWindow) {
+    mainWindow.webContents.send('update-error', { error: error.message })
+  }
 })
 
 app.on('window-all-closed', () => {

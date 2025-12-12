@@ -18,12 +18,31 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error'>('idle')
   const [latestVersion, setLatestVersion] = useState('')
   const [updateError, setUpdateError] = useState('')
+  const [downloadProgress, setDownloadProgress] = useState(0)
 
   useEffect(() => {
     // Load app version
     if (typeof window !== 'undefined' && window.electronAPI?.getAppVersion) {
       window.electronAPI.getAppVersion().then((version: string) => {
         setAppVersion(version)
+      })
+    }
+
+    // Listen for update events
+    let unsubProgress: (() => void) | undefined
+    let unsubDownloaded: (() => void) | undefined
+    let unsubError: (() => void) | undefined
+
+    if (typeof window !== 'undefined' && window.electronAPI) {
+      unsubProgress = window.electronAPI.onUpdateDownloadProgress?.((data) => {
+        setDownloadProgress(Math.round(data.percent))
+      })
+      unsubDownloaded = window.electronAPI.onUpdateDownloaded?.(() => {
+        setUpdateStatus('ready')
+      })
+      unsubError = window.electronAPI.onUpdateError?.((data) => {
+        setUpdateStatus('error')
+        setUpdateError(data.error)
       })
     }
 
@@ -46,6 +65,13 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const savedConfirmActions = localStorage.getItem('ts-inspect-confirm-actions')
     if (savedConfirmActions !== null) {
       setConfirmActions(savedConfirmActions !== 'false')
+    }
+
+    // Cleanup event listeners
+    return () => {
+      unsubProgress?.()
+      unsubDownloaded?.()
+      unsubError?.()
     }
   }, [isOpen])
 
@@ -301,10 +327,13 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   )}
                   
                   {updateStatus === 'downloading' && (
-                    <button className="btn btn-sm btn-primary w-full" disabled>
-                      <span className="loading loading-spinner loading-xs"></span>
-                      Downloading...
-                    </button>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <progress className="progress progress-primary flex-1" value={downloadProgress} max="100"></progress>
+                        <span className="text-sm">{downloadProgress}%</span>
+                      </div>
+                      <p className="text-xs text-base-content/60 text-center">Downloading update...</p>
+                    </div>
                   )}
                   
                   {updateStatus === 'ready' && (

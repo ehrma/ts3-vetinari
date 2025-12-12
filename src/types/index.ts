@@ -419,6 +419,9 @@ declare global {
       downloadUpdate: () => Promise<{ success: boolean; error?: string }>
       installUpdate: () => void
       openExternalUrl: (url: string) => Promise<void>
+      onUpdateDownloadProgress: (callback: (data: { percent: number; transferred: number; total: number }) => void) => () => void
+      onUpdateDownloaded: (callback: (data: { version: string }) => void) => () => void
+      onUpdateError: (callback: (data: { error: string }) => void) => () => void
     }
   }
 }
