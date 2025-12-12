@@ -54,8 +54,7 @@ jobs:
             dist/*.AppImage
             dist/*.deb
             dist/*.rpm
-            dist/*.yml
-            dist/*.yaml
+            dist/latest*.yml
           if-no-files-found: ignore
 
   release:
