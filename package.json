@@ -1,6 +1,6 @@
 {
   "name": "ts3-vetinari",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "A TeamSpeak3 Serveradmin Utility",
   "main": "electron/main.js",
   "scripts": {
