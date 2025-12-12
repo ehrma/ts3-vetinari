@@ -202,6 +202,44 @@ export interface ServerGroupsResult {
   groups?: ServerGroup[]
 }
 
+export interface ServerGroupClient {
+  cldbid: number
+  client_nickname: string
+  client_unique_identifier: string
+}
+
+export interface ServerGroupClientsResult {
+  success: boolean
+  error?: string
+  clients?: ServerGroupClient[]
+}
+
+export interface Permission {
+  permid: number
+  permsid: string
+  permdesc?: string
+}
+
+export interface GroupPermission {
+  permid: number
+  permsid: string
+  permvalue: number
+  permnegated: boolean
+  permskip: boolean
+}
+
+export interface PermissionListResult {
+  success: boolean
+  error?: string
+  permissions?: Permission[]
+}
+
+export interface GroupPermissionsResult {
+  success: boolean
+  error?: string
+  permissions?: GroupPermission[]
+}
+
 export interface SimpleResult {
   success: boolean
   error?: string
@@ -244,6 +282,72 @@ export interface ClientDbInfoResult {
   client?: ClientDbInfo
 }
 
+// Privilege Keys
+export interface PrivilegeKey {
+  token: string
+  token_type: number // 0 = server group, 1 = channel group
+  token_id1: number // group ID
+  token_id2: number // channel ID (for channel groups)
+  token_created: number
+  token_description: string
+  token_customset: string
+}
+
+export interface PrivilegeKeyListResult {
+  success: boolean
+  error?: string
+  tokens?: PrivilegeKey[]
+}
+
+export interface PrivilegeKeyAddResult {
+  success: boolean
+  error?: string
+  token?: string
+}
+
+// Complaints
+export interface Complaint {
+  tcldbid: number // target client database ID
+  tname: string // target name
+  fcldbid: number // from client database ID
+  fname: string // from name
+  message: string
+  timestamp: number
+}
+
+export interface ComplaintsResult {
+  success: boolean
+  error?: string
+  complaints?: Complaint[]
+}
+
+// File Browser
+export interface FileEntry {
+  cid: number
+  path: string
+  name: string
+  size: number
+  datetime: number
+  type: number // 0 = file, 1 = directory
+}
+
+export interface FileListResult {
+  success: boolean
+  error?: string
+  files?: FileEntry[]
+}
+
+export interface FileInfoResult {
+  success: boolean
+  error?: string
+  file?: {
+    cid: number
+    name: string
+    size: number
+    datetime: number
+  }
+}
+
 declare global {
   interface Window {
     electronAPI: {
@@ -272,8 +376,17 @@ declare global {
       pokeClient: (connectionId: string, clid: number, msg: string) => Promise<SimpleResult>
       // Server Groups
       getServerGroups: (connectionId: string) => Promise<ServerGroupsResult>
+      getServerGroupClients: (connectionId: string, sgid: number) => Promise<ServerGroupClientsResult>
+      copyServerGroup: (connectionId: string, sourceSgid: number, name: string, type?: number) => Promise<{ success: boolean; error?: string; sgid?: number }>
+      deleteServerGroup: (connectionId: string, sgid: number, force?: boolean) => Promise<SimpleResult>
+      renameServerGroup: (connectionId: string, sgid: number, name: string) => Promise<SimpleResult>
       addClientToGroup: (connectionId: string, sgid: number, cldbid: number) => Promise<SimpleResult>
       removeClientFromGroup: (connectionId: string, sgid: number, cldbid: number) => Promise<SimpleResult>
+      // Server Group Permissions
+      getServerGroupPermissions: (connectionId: string, sgid: number) => Promise<GroupPermissionsResult>
+      getPermissionList: (connectionId: string) => Promise<PermissionListResult>
+      addServerGroupPermission: (connectionId: string, sgid: number, permsid: string, permvalue: number, permnegated?: boolean, permskip?: boolean) => Promise<SimpleResult>
+      removeServerGroupPermission: (connectionId: string, sgid: number, permsid: string) => Promise<SimpleResult>
       // Channel Management
       createChannel: (connectionId: string, name: string, parent?: number, options?: Record<string, unknown>) => Promise<CreateChannelResult>
       editChannel: (connectionId: string, cid: number, properties: Record<string, unknown>) => Promise<SimpleResult>
@@ -283,6 +396,23 @@ declare global {
       getClientDbInfo: (connectionId: string, cldbid: number) => Promise<ClientDbInfoResult>
       editClientDb: (connectionId: string, cldbid: number, properties: Record<string, unknown>) => Promise<SimpleResult>
       deleteClientDb: (connectionId: string, cldbid: number) => Promise<SimpleResult>
+      // Privilege Keys
+      getPrivilegeKeys: (connectionId: string) => Promise<PrivilegeKeyListResult>
+      addPrivilegeKey: (connectionId: string, tokenType: number, groupId: number, channelId?: number, description?: string) => Promise<PrivilegeKeyAddResult>
+      deletePrivilegeKey: (connectionId: string, token: string) => Promise<SimpleResult>
+      // Complaints
+      getComplaints: (connectionId: string, targetCldbid?: number) => Promise<ComplaintsResult>
+      addComplaint: (connectionId: string, targetCldbid: number, message: string) => Promise<SimpleResult>
+      deleteComplaint: (connectionId: string, targetCldbid: number, fromCldbid: number) => Promise<SimpleResult>
+      deleteAllComplaints: (connectionId: string, targetCldbid: number) => Promise<SimpleResult>
+      // Server Edit
+      editServer: (connectionId: string, properties: Record<string, unknown>) => Promise<SimpleResult>
+      // File Browser
+      getFileList: (connectionId: string, cid: number, cpw?: string, path?: string) => Promise<FileListResult>
+      getFileInfo: (connectionId: string, cid: number, cpw?: string, name?: string) => Promise<FileInfoResult>
+      createDirectory: (connectionId: string, cid: number, cpw?: string, dirname?: string) => Promise<SimpleResult>
+      deleteFile: (connectionId: string, cid: number, cpw?: string, name?: string) => Promise<SimpleResult>
+      renameFile: (connectionId: string, cid: number, cpw?: string, oldName?: string, newName?: string) => Promise<SimpleResult>
     }
   }
 }

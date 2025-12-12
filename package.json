@@ -1,7 +1,7 @@
 {
-  "name": "ts-inspect",
+  "name": "ts3-vetinari",
   "version": "1.0.0",
-  "description": "TeamSpeak 3 Server Management Tool",
+  "description": "A TeamSpeak3 Serveradmin Utility",
   "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
@@ -44,8 +44,8 @@
     "wait-on": "^9.0.3"
   },
   "build": {
-    "appId": "com.ts3inspect.app",
-    "productName": "TS3 Inspect",
+    "appId": "com.ts3vetinari.app",
+    "productName": "TS3 Vetinari",
     "directories": {
       "output": "dist"
     },

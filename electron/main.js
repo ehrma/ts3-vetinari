@@ -64,6 +64,8 @@ function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    title: 'TS3 Vetinari',
+    icon: path.join(__dirname, '../public/logo.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -640,9 +642,16 @@ ipcMain.handle('send-message', async (event, { connectionId, targetMode, target,
 
   try {
     // targetMode: 1 = private, 2 = channel, 3 = server
-    await conn.sendTextMessage(target, targetMode, msg)
+    // Use raw execute command to ensure correct parameter format
+    console.log('Sending message:', { targetMode, target, msg })
+    await conn.execute('sendtextmessage', {
+      targetmode: String(targetMode),
+      target: String(target),
+      msg: msg
+    })
     return { success: true }
   } catch (error) {
+    console.log('Send message error:', error.message)
     return { success: false, error: error.message || 'Failed to send message' }
   }
 })
@@ -692,6 +701,180 @@ ipcMain.handle('get-server-groups', async (event, { connectionId }) => {
     }
   } catch (error) {
     return { success: false, error: error.message || 'Failed to get server groups' }
+  }
+})
+
+// Get server group clients (members)
+ipcMain.handle('get-server-group-clients', async (event, { connectionId, sgid }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    const clients = await conn.serverGroupClientList(sgid)
+    const clientList = Array.isArray(clients) ? clients : (clients ? [clients] : [])
+    return {
+      success: true,
+      clients: clientList.map(c => {
+        const p = JSON.parse(JSON.stringify(c))
+        return {
+          cldbid: parseInt(p.cldbid) || 0,
+          client_nickname: p.clientNickname || p.client_nickname || '',
+          client_unique_identifier: p.clientUniqueIdentifier || p.client_unique_identifier || '',
+        }
+      })
+    }
+  } catch (error) {
+    if (error.id === '1281' || error.message?.includes('empty result')) {
+      return { success: true, clients: [] }
+    }
+    return { success: false, error: error.message || 'Failed to get server group clients' }
+  }
+})
+
+// Copy server group
+ipcMain.handle('copy-server-group', async (event, { connectionId, sourceSgid, name, type }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    const result = await conn.serverGroupCopy(sourceSgid, 0, name, type || 1)
+    const p = JSON.parse(JSON.stringify(result))
+    return { success: true, sgid: parseInt(p.sgid) }
+  } catch (error) {
+    return { success: false, error: error.message || 'Failed to copy server group' }
+  }
+})
+
+// Delete server group
+ipcMain.handle('delete-server-group', async (event, { connectionId, sgid, force }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    await conn.serverGroupDel(sgid, force ? 1 : 0)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error.message || 'Failed to delete server group' }
+  }
+})
+
+// Rename server group
+ipcMain.handle('rename-server-group', async (event, { connectionId, sgid, name }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    await conn.serverGroupRename(sgid, name)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error.message || 'Failed to rename server group' }
+  }
+})
+
+// Get server group permissions
+ipcMain.handle('get-server-group-permissions', async (event, { connectionId, sgid }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    // Get permissions using the library method with permsid flag
+    const perms = await conn.serverGroupPermList(sgid, true)
+    const permList = Array.isArray(perms) ? perms : (perms ? [perms] : [])
+    
+    // Debug: log raw object to see actual property names
+    if (permList.length > 0) {
+      const first = permList[0]
+      // Get all enumerable and non-enumerable properties
+      const allProps = Object.getOwnPropertyNames(first)
+      console.log('Permission props:', allProps)
+      console.log('Permission values:', allProps.map(k => `${k}=${first[k]}`).join(', '))
+    }
+    
+    return {
+      success: true,
+      permissions: permList.map((p, index) => {
+        // The library uses _perm for name, _value for value, _skip and _negate for flags
+        return {
+          permid: index,
+          permsid: String(p._perm || `perm_${index}`),
+          permvalue: parseInt(p._value) || 0,
+          permnegated: p._negate === true,
+          permskip: p._skip === true,
+        }
+      })
+    }
+  } catch (error) {
+    console.log('Permission list error:', error.message)
+    if (error.id === '1281' || error.message?.includes('empty result')) {
+      return { success: true, permissions: [] }
+    }
+    return { success: false, error: error.message || 'Failed to get server group permissions' }
+  }
+})
+
+// Get all available permissions
+ipcMain.handle('get-permission-list', async (event, { connectionId }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    const perms = await conn.permissionList()
+    const permList = Array.isArray(perms) ? perms : (perms ? [perms] : [])
+    return {
+      success: true,
+      permissions: permList.map(p => {
+        // Manually extract properties to avoid circular reference issues
+        return {
+          permid: parseInt(p.permid) || 0,
+          permsid: String(p.permname || p.permsid || ''),
+          permdesc: String(p.permdesc || ''),
+        }
+      })
+    }
+  } catch (error) {
+    return { success: false, error: error.message || 'Failed to get permission list' }
+  }
+})
+
+// Add permission to server group
+ipcMain.handle('add-server-group-permission', async (event, { connectionId, sgid, permsid, permvalue, permnegated, permskip }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    await conn.serverGroupAddPerm(sgid, permsid, permvalue, permnegated ? 1 : 0, permskip ? 1 : 0)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error.message || 'Failed to add permission' }
+  }
+})
+
+// Remove permission from server group
+ipcMain.handle('remove-server-group-permission', async (event, { connectionId, sgid, permsid }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    await conn.serverGroupDelPerm(sgid, permsid)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error.message || 'Failed to remove permission' }
   }
 })
 
@@ -939,5 +1122,316 @@ ipcMain.handle('move-client', async (event, { connectionId, clid, cid }) => {
         error: err2.message || error.message || 'Failed to move client',
       }
     }
+  }
+})
+
+// ==================== PRIVILEGE KEYS ====================
+
+// Get privilege key list
+ipcMain.handle('get-privilege-keys', async (event, { connectionId }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    const tokens = await conn.privilegeKeyList()
+    const tokenList = Array.isArray(tokens) ? tokens : (tokens ? [tokens] : [])
+    return {
+      success: true,
+      tokens: tokenList.map(t => {
+        const p = JSON.parse(JSON.stringify(t))
+        return {
+          token: p.token,
+          token_type: parseInt(p.tokenType) || 0,
+          token_id1: parseInt(p.tokenId1) || 0,
+          token_id2: parseInt(p.tokenId2) || 0,
+          token_created: parseInt(p.tokenCreated) || 0,
+          token_description: p.tokenDescription || '',
+          token_customset: p.tokenCustomset || '',
+        }
+      })
+    }
+  } catch (error) {
+    if (error.message?.includes('empty result')) {
+      return { success: true, tokens: [] }
+    }
+    return { success: false, error: error.message || 'Failed to get privilege keys' }
+  }
+})
+
+// Add privilege key
+ipcMain.handle('add-privilege-key', async (event, { connectionId, tokenType, groupId, channelId, description }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    const result = await conn.privilegeKeyAdd(tokenType, groupId, channelId || 0, description || '')
+    const p = JSON.parse(JSON.stringify(result))
+    return { success: true, token: p.token }
+  } catch (error) {
+    return { success: false, error: error.message || 'Failed to create privilege key' }
+  }
+})
+
+// Delete privilege key
+ipcMain.handle('delete-privilege-key', async (event, { connectionId, token }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    await conn.privilegeKeyDelete(token)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error.message || 'Failed to delete privilege key' }
+  }
+})
+
+// ==================== COMPLAINTS ====================
+
+// Get complaints list
+ipcMain.handle('get-complaints', async (event, { connectionId, targetCldbid }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    const complaints = targetCldbid 
+      ? await conn.complainList(targetCldbid)
+      : await conn.complainList()
+    const complaintList = Array.isArray(complaints) ? complaints : (complaints ? [complaints] : [])
+    return {
+      success: true,
+      complaints: complaintList.map(c => {
+        const p = JSON.parse(JSON.stringify(c))
+        return {
+          tcldbid: parseInt(p.tcldbid) || 0,
+          tname: p.tname || '',
+          fcldbid: parseInt(p.fcldbid) || 0,
+          fname: p.fname || '',
+          message: p.message || '',
+          timestamp: parseInt(p.timestamp) || 0,
+        }
+      })
+    }
+  } catch (error) {
+    if (error.message?.includes('empty result')) {
+      return { success: true, complaints: [] }
+    }
+    return { success: false, error: error.message || 'Failed to get complaints' }
+  }
+})
+
+// Add complaint
+ipcMain.handle('add-complaint', async (event, { connectionId, targetCldbid, message }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    await conn.complainAdd(targetCldbid, message)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error.message || 'Failed to add complaint' }
+  }
+})
+
+// Delete complaint
+ipcMain.handle('delete-complaint', async (event, { connectionId, targetCldbid, fromCldbid }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    await conn.complainDel(targetCldbid, fromCldbid)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error.message || 'Failed to delete complaint' }
+  }
+})
+
+// Delete all complaints for a client
+ipcMain.handle('delete-all-complaints', async (event, { connectionId, targetCldbid }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    await conn.complainDelAll(targetCldbid)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error.message || 'Failed to delete all complaints' }
+  }
+})
+
+// ==================== SERVER EDIT ====================
+
+// Edit server properties
+ipcMain.handle('edit-server', async (event, { connectionId, properties }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    await conn.serverEdit(properties)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error.message || 'Failed to edit server' }
+  }
+})
+
+// ==================== FILE BROWSER ====================
+
+// Get file list for a channel
+ipcMain.handle('get-file-list', async (event, { connectionId, cid, cpw, path }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    // TS3 API: ftgetfilelist cid=X cpw= path=/
+    // Path should be "/" for root or "/foldername" for subdirectories
+    const filePath = (!path || path === '/') ? '/' : path
+    console.log(`Getting file list for channel ${cid}, path: "${filePath}"`)
+    
+    // Use raw execute to ensure correct parameter format
+    const response = await conn.execute('ftgetfilelist', { 
+      cid: String(cid), 
+      cpw: cpw || '', 
+      path: filePath 
+    })
+    
+    console.log('Raw response:', JSON.stringify(response))
+    
+    // Response could be array or single object or have nested structure
+    let fileList = []
+    if (Array.isArray(response)) {
+      fileList = response
+    } else if (response && typeof response === 'object') {
+      // Check if it's a single file entry or wrapper
+      if (response.name !== undefined) {
+        fileList = [response]
+      } else if (response.files) {
+        fileList = Array.isArray(response.files) ? response.files : [response.files]
+      }
+    }
+    
+    console.log(`Found ${fileList.length} files`)
+    
+    return {
+      success: true,
+      files: fileList.map(f => {
+        const p = JSON.parse(JSON.stringify(f))
+        return {
+          cid: parseInt(p.cid) || cid,
+          path: p.path || path || '/',
+          name: p.name || '',
+          size: parseInt(p.size) || 0,
+          datetime: parseInt(p.datetime) || 0,
+          type: parseInt(p.type) || 0, // 0 = directory, 1 = file
+        }
+      })
+    }
+  } catch (error) {
+    // Error 1281 = "database empty result set" - this is normal for channels with no files
+    if (error.id === '1281' || error.id === 1281 || error.message?.includes('empty result') || error.message?.includes('database empty')) {
+      return { success: true, files: [] }
+    }
+    console.log('File list error:', error.message)
+    return { success: false, error: error.message || 'Failed to get file list' }
+  }
+})
+
+// Get file info
+ipcMain.handle('get-file-info', async (event, { connectionId, cid, cpw, name }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    const info = await conn.ftGetFileInfo(cid, cpw || '', name)
+    const p = JSON.parse(JSON.stringify(info))
+    return {
+      success: true,
+      file: {
+        cid: parseInt(p.cid) || cid,
+        name: p.name || name,
+        size: parseInt(p.size) || 0,
+        datetime: parseInt(p.datetime) || 0,
+      }
+    }
+  } catch (error) {
+    return { success: false, error: error.message || 'Failed to get file info' }
+  }
+})
+
+// Create directory
+ipcMain.handle('create-directory', async (event, { connectionId, cid, cpw, dirname }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    console.log(`Creating directory: cid=${cid}, dirname="${dirname}"`)
+    // Use raw execute to ensure correct parameter format
+    // ftcreatedir cid=X cpw= dirname=/path
+    await conn.execute('ftcreatedir', {
+      cid: String(cid),
+      cpw: cpw || '',
+      dirname: dirname
+    })
+    return { success: true }
+  } catch (error) {
+    console.log('Create dir error:', error.message)
+    return { success: false, error: error.message || 'Failed to create directory' }
+  }
+})
+
+// Delete file
+ipcMain.handle('delete-file', async (event, { connectionId, cid, cpw, name }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    console.log(`Deleting file: cid=${cid}, name="${name}"`)
+    // Use raw execute to ensure correct parameter format
+    await conn.execute('ftdeletefile', {
+      cid: String(cid),
+      cpw: cpw || '',
+      name: name
+    })
+    return { success: true }
+  } catch (error) {
+    console.log('Delete file error:', error.message)
+    return { success: false, error: error.message || 'Failed to delete file' }
+  }
+})
+
+// Rename file
+ipcMain.handle('rename-file', async (event, { connectionId, cid, cpw, oldName, newName }) => {
+  const conn = connections.get(connectionId)
+  if (!conn) {
+    return { success: false, error: 'Not connected' }
+  }
+
+  try {
+    await conn.ftRenameFile(cid, cpw || '', oldName, cid, cpw || '', newName)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error.message || 'Failed to rename file' }
   }
 })

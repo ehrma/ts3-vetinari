@@ -10,6 +10,8 @@ import ChannelDetailsModal from '@/components/ChannelDetailsModal'
 import LogViewer from '@/components/LogViewer'
 import AdminPanel from '@/components/AdminPanel'
 import ClientDatabase from '@/components/ClientDatabase'
+import ServerManagement from '@/components/ServerManagement'
+import SettingsModal from '@/components/SettingsModal'
 import { Connection, StoredConnection, ServerState, TS3Client, TS3Channel } from '@/types'
 
 export default function Home() {
@@ -26,9 +28,19 @@ export default function Home() {
   const [isLogViewerOpen, setIsLogViewerOpen] = useState(false)
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false)
   const [isClientDbOpen, setIsClientDbOpen] = useState(false)
+  const [isServerMgmtOpen, setIsServerMgmtOpen] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   useEffect(() => {
     loadConnections()
+    // Initialize theme from localStorage
+    const savedTheme = localStorage.getItem('ts-inspect-theme')
+    if (savedTheme === 'system') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light')
+    } else if (savedTheme) {
+      document.documentElement.setAttribute('data-theme', savedTheme)
+    }
   }, [])
 
   const loadConnections = async () => {
@@ -128,7 +140,22 @@ export default function Home() {
       {/* Sidebar */}
       <div className="w-72 bg-base-200 flex flex-col border-r border-base-300">
         <div className="p-4 border-b border-base-300">
-          <h1 className="text-xl font-bold text-primary">TS3 Inspect</h1>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <img src="/logo.png" alt="TS3 Vetinari" className="w-8 h-8" />
+              <div>
+                <h1 className="text-lg font-bold text-primary leading-tight">TS3 Vetinari</h1>
+                <p className="text-xs text-base-content/50 leading-tight">A TeamSpeak3 Serveradmin Utility</p>
+              </div>
+            </div>
+            <button 
+              className="btn btn-sm btn-ghost btn-circle"
+              onClick={() => setIsSettingsOpen(true)}
+              title="Settings"
+            >
+              ⚙️
+            </button>
+          </div>
         </div>
         
         <div className="p-2">
@@ -178,6 +205,7 @@ export default function Home() {
             onLogsClick={() => setIsLogViewerOpen(true)}
             onAdminClick={() => setIsAdminPanelOpen(true)}
             onClientDbClick={() => setIsClientDbOpen(true)}
+            onServerMgmtClick={() => setIsServerMgmtOpen(true)}
           />
         ) : selectedConnection ? (
           <div className="flex-1 flex items-center justify-center">
@@ -290,6 +318,24 @@ export default function Home() {
           onClose={() => setIsClientDbOpen(false)}
         />
       )}
+
+      {/* Server Management */}
+      {selectedConnectionId && (
+        <ServerManagement
+          connectionId={selectedConnectionId}
+          serverInfo={selectedServerState?.serverInfo || null}
+          channels={selectedServerState?.channels || []}
+          isOpen={isServerMgmtOpen}
+          onClose={() => setIsServerMgmtOpen(false)}
+          onRefresh={() => refreshServerData(selectedConnectionId)}
+        />
+      )}
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
     </div>
   )
 }

@@ -29,8 +29,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   pokeClient: (connectionId, clid, msg) => ipcRenderer.invoke('poke-client', { connectionId, clid, msg }),
   // Server Groups
   getServerGroups: (connectionId) => ipcRenderer.invoke('get-server-groups', { connectionId }),
+  getServerGroupClients: (connectionId, sgid) => ipcRenderer.invoke('get-server-group-clients', { connectionId, sgid }),
+  copyServerGroup: (connectionId, sourceSgid, name, type) => ipcRenderer.invoke('copy-server-group', { connectionId, sourceSgid, name, type }),
+  deleteServerGroup: (connectionId, sgid, force) => ipcRenderer.invoke('delete-server-group', { connectionId, sgid, force }),
+  renameServerGroup: (connectionId, sgid, name) => ipcRenderer.invoke('rename-server-group', { connectionId, sgid, name }),
   addClientToGroup: (connectionId, sgid, cldbid) => ipcRenderer.invoke('add-client-to-group', { connectionId, sgid, cldbid }),
   removeClientFromGroup: (connectionId, sgid, cldbid) => ipcRenderer.invoke('remove-client-from-group', { connectionId, sgid, cldbid }),
+  // Server Group Permissions
+  getServerGroupPermissions: (connectionId, sgid) => ipcRenderer.invoke('get-server-group-permissions', { connectionId, sgid }),
+  getPermissionList: (connectionId) => ipcRenderer.invoke('get-permission-list', { connectionId }),
+  addServerGroupPermission: (connectionId, sgid, permsid, permvalue, permnegated, permskip) => ipcRenderer.invoke('add-server-group-permission', { connectionId, sgid, permsid, permvalue, permnegated, permskip }),
+  removeServerGroupPermission: (connectionId, sgid, permsid) => ipcRenderer.invoke('remove-server-group-permission', { connectionId, sgid, permsid }),
   // Channel Management
   createChannel: (connectionId, name, parent, options) => ipcRenderer.invoke('create-channel', { connectionId, name, parent, options }),
   editChannel: (connectionId, cid, properties) => ipcRenderer.invoke('edit-channel', { connectionId, cid, properties }),
@@ -40,4 +49,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getClientDbInfo: (connectionId, cldbid) => ipcRenderer.invoke('get-client-db-info', { connectionId, cldbid }),
   editClientDb: (connectionId, cldbid, properties) => ipcRenderer.invoke('edit-client-db', { connectionId, cldbid, properties }),
   deleteClientDb: (connectionId, cldbid) => ipcRenderer.invoke('delete-client-db', { connectionId, cldbid }),
+  // Privilege Keys
+  getPrivilegeKeys: (connectionId) => ipcRenderer.invoke('get-privilege-keys', { connectionId }),
+  addPrivilegeKey: (connectionId, tokenType, groupId, channelId, description) => ipcRenderer.invoke('add-privilege-key', { connectionId, tokenType, groupId, channelId, description }),
+  deletePrivilegeKey: (connectionId, token) => ipcRenderer.invoke('delete-privilege-key', { connectionId, token }),
+  // Complaints
+  getComplaints: (connectionId, targetCldbid) => ipcRenderer.invoke('get-complaints', { connectionId, targetCldbid }),
+  addComplaint: (connectionId, targetCldbid, message) => ipcRenderer.invoke('add-complaint', { connectionId, targetCldbid, message }),
+  deleteComplaint: (connectionId, targetCldbid, fromCldbid) => ipcRenderer.invoke('delete-complaint', { connectionId, targetCldbid, fromCldbid }),
+  deleteAllComplaints: (connectionId, targetCldbid) => ipcRenderer.invoke('delete-all-complaints', { connectionId, targetCldbid }),
+  // Server Edit
+  editServer: (connectionId, properties) => ipcRenderer.invoke('edit-server', { connectionId, properties }),
+  // File Browser
+  getFileList: (connectionId, cid, cpw, path) => ipcRenderer.invoke('get-file-list', { connectionId, cid, cpw, path }),
+  getFileInfo: (connectionId, cid, cpw, name) => ipcRenderer.invoke('get-file-info', { connectionId, cid, cpw, name }),
+  createDirectory: (connectionId, cid, cpw, dirname) => ipcRenderer.invoke('create-directory', { connectionId, cid, cpw, dirname }),
+  deleteFile: (connectionId, cid, cpw, name) => ipcRenderer.invoke('delete-file', { connectionId, cid, cpw, name }),
+  renameFile: (connectionId, cid, cpw, oldName, newName) => ipcRenderer.invoke('rename-file', { connectionId, cid, cpw, oldName, newName }),
 })

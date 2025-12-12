@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'TS3 Inspect',
-  description: 'TeamSpeak 3 Server Management Tool',
+  title: 'TS3 Vetinari',
+  description: 'A TeamSpeak3 Serveradmin Utility',
 }
 
 export default function RootLayout({

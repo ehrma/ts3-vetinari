@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Ban, ServerGroup, TS3Channel } from '@/types'
+import { Ban, ServerGroup, ServerGroupClient, TS3Channel } from '@/types'
+import GroupPermissionsModal from './GroupPermissionsModal'
 
 interface AdminPanelProps {
   connectionId: string
@@ -19,6 +20,7 @@ export default function AdminPanel({ connectionId, channels, isOpen, onClose, on
   const [groups, setGroups] = useState<ServerGroup[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
 
   // Ban form state
   const [banIp, setBanIp] = useState('')
@@ -36,6 +38,18 @@ export default function AdminPanel({ connectionId, channels, isOpen, onClose, on
   const [messageTarget, setMessageTarget] = useState<'server' | 'channel'>('server')
   const [messageChannelId, setMessageChannelId] = useState<number>(0)
   const [messageText, setMessageText] = useState('')
+
+  // Server Group state
+  const [selectedGroup, setSelectedGroup] = useState<ServerGroup | null>(null)
+  const [groupMembers, setGroupMembers] = useState<ServerGroupClient[]>([])
+  const [groupMembersLoading, setGroupMembersLoading] = useState(false)
+  const [newGroupName, setNewGroupName] = useState('')
+  const [copyFromGroup, setCopyFromGroup] = useState<number>(0)
+  const [addMemberCldbid, setAddMemberCldbid] = useState('')
+  const [renameGroupName, setRenameGroupName] = useState('')
+  
+  // Permissions modal state
+  const [isPermissionsModalOpen, setIsPermissionsModalOpen] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -77,6 +91,135 @@ export default function AdminPanel({ connectionId, channels, isOpen, onClose, on
       setError(String(err))
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadGroupMembers = async (sgid: number) => {
+    if (!window.electronAPI) return
+    setGroupMembersLoading(true)
+    try {
+      const result = await window.electronAPI.getServerGroupClients(connectionId, sgid)
+      if (result.success) {
+        setGroupMembers(result.clients || [])
+      }
+    } catch (err) {
+      console.error('Failed to load group members:', err)
+    } finally {
+      setGroupMembersLoading(false)
+    }
+  }
+
+  const handleSelectGroup = (group: ServerGroup) => {
+    setSelectedGroup(group)
+    setRenameGroupName(group.name)
+    loadGroupMembers(group.sgid)
+  }
+
+  const handleCreateGroup = async () => {
+    if (!window.electronAPI || !newGroupName.trim()) return
+    setLoading(true)
+    setError(null)
+    try {
+      const sourceSgid = copyFromGroup || groups[0]?.sgid || 1
+      const result = await window.electronAPI.copyServerGroup(connectionId, sourceSgid, newGroupName, 1)
+      if (result.success) {
+        setNewGroupName('')
+        setCopyFromGroup(0)
+        setSuccess(`Group "${newGroupName}" created successfully`)
+        loadGroups()
+      } else {
+        setError(result.error || 'Failed to create group')
+      }
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRenameGroup = async () => {
+    if (!window.electronAPI || !selectedGroup || !renameGroupName.trim()) return
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await window.electronAPI.renameServerGroup(connectionId, selectedGroup.sgid, renameGroupName)
+      if (result.success) {
+        setSuccess(`Group renamed to "${renameGroupName}"`)
+        loadGroups()
+        setSelectedGroup({ ...selectedGroup, name: renameGroupName })
+      } else {
+        setError(result.error || 'Failed to rename group')
+      }
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteGroup = async () => {
+    if (!window.electronAPI || !selectedGroup) return
+    if (!confirm(`Delete server group "${selectedGroup.name}"? This cannot be undone.`)) return
+    
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await window.electronAPI.deleteServerGroup(connectionId, selectedGroup.sgid, true)
+      if (result.success) {
+        setSuccess(`Group "${selectedGroup.name}" deleted`)
+        setSelectedGroup(null)
+        setGroupMembers([])
+        loadGroups()
+      } else {
+        setError(result.error || 'Failed to delete group')
+      }
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAddMember = async () => {
+    if (!window.electronAPI || !selectedGroup || !addMemberCldbid.trim()) return
+    const cldbid = parseInt(addMemberCldbid)
+    if (isNaN(cldbid)) {
+      setError('Please enter a valid client database ID')
+      return
+    }
+    
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await window.electronAPI.addClientToGroup(connectionId, selectedGroup.sgid, cldbid)
+      if (result.success) {
+        setAddMemberCldbid('')
+        setSuccess(`Client added to group`)
+        loadGroupMembers(selectedGroup.sgid)
+      } else {
+        setError(result.error || 'Failed to add member')
+      }
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRemoveMember = async (cldbid: number, nickname: string) => {
+    if (!window.electronAPI || !selectedGroup) return
+    if (!confirm(`Remove "${nickname}" from this group?`)) return
+    
+    try {
+      const result = await window.electronAPI.removeClientFromGroup(connectionId, selectedGroup.sgid, cldbid)
+      if (result.success) {
+        setSuccess(`"${nickname}" removed from group`)
+        loadGroupMembers(selectedGroup.sgid)
+      } else {
+        setError(result.error || 'Failed to remove member')
+      }
+    } catch (err) {
+      setError(String(err))
     }
   }
 
@@ -175,8 +318,13 @@ export default function AdminPanel({ connectionId, channels, isOpen, onClose, on
       setError('Please enter a message')
       return
     }
+    if (messageTarget === 'channel' && messageChannelId === 0) {
+      setError('Please select a channel')
+      return
+    }
 
     setLoading(true)
+    setError('')
     try {
       const targetMode = messageTarget === 'server' ? 3 : 2
       const target = messageTarget === 'server' ? 0 : messageChannelId
@@ -184,6 +332,8 @@ export default function AdminPanel({ connectionId, channels, isOpen, onClose, on
       const result = await window.electronAPI.sendMessage(connectionId, targetMode, target, messageText)
       if (result.success) {
         setMessageText('')
+        setSuccess(`Message sent to ${messageTarget === 'server' ? 'server' : 'channel'}`)
+        setTimeout(() => setSuccess(null), 3000)
       } else {
         setError(result.error || 'Failed to send message')
       }
@@ -241,6 +391,14 @@ export default function AdminPanel({ connectionId, channels, isOpen, onClose, on
           <div className="alert alert-error mx-4 mt-4">
             <span>{error}</span>
             <button className="btn btn-xs btn-ghost" onClick={() => setError(null)}>✕</button>
+          </div>
+        )}
+
+        {/* Success Display */}
+        {success && (
+          <div className="alert alert-success mx-4 mt-4">
+            <span>{success}</span>
+            <button className="btn btn-xs btn-ghost" onClick={() => setSuccess(null)}>✕</button>
           </div>
         )}
 
@@ -354,29 +512,174 @@ export default function AdminPanel({ connectionId, channels, isOpen, onClose, on
 
           {/* Server Groups Tab */}
           {activeTab === 'groups' && !loading && (
-            <div className="bg-base-200 rounded-lg p-4">
-              <div className="flex justify-between items-center mb-3">
-                <h4 className="font-semibold">Server Groups ({groups.length})</h4>
-                <button className="btn btn-xs btn-ghost" onClick={loadGroups}>Refresh</button>
-              </div>
-              {groups.length === 0 ? (
-                <p className="text-base-content/50 text-center py-4">No server groups found</p>
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {groups.map((group) => (
-                    <div key={group.sgid} className="flex items-center gap-2 p-2 bg-base-100 rounded">
-                      <span className="badge badge-sm badge-primary">{group.sgid}</span>
-                      <span className="flex-1">{group.name}</span>
-                      <span className="text-xs text-base-content/50">
-                        {group.type === 0 ? 'Template' : group.type === 1 ? 'Regular' : 'Query'}
-                      </span>
-                    </div>
-                  ))}
+            <div className="flex gap-4 h-full">
+              {/* Left: Group List */}
+              <div className="w-1/2 space-y-4">
+                {/* Create Group Form */}
+                <div className="bg-base-200 rounded-lg p-4">
+                  <h4 className="font-semibold mb-3">Create New Group</h4>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Group name"
+                      className="input input-sm input-bordered flex-1"
+                      value={newGroupName}
+                      onChange={(e) => setNewGroupName(e.target.value)}
+                    />
+                    <select
+                      className="select select-sm select-bordered"
+                      value={copyFromGroup}
+                      onChange={(e) => setCopyFromGroup(parseInt(e.target.value))}
+                    >
+                      <option value={0}>Copy from...</option>
+                      {groups.map(g => (
+                        <option key={g.sgid} value={g.sgid}>{g.name}</option>
+                      ))}
+                    </select>
+                    <button 
+                      className="btn btn-sm btn-primary"
+                      onClick={handleCreateGroup}
+                      disabled={!newGroupName.trim()}
+                    >
+                      Create
+                    </button>
+                  </div>
                 </div>
-              )}
-              <p className="text-xs text-base-content/50 mt-4">
-                Tip: To add/remove clients from groups, click on a client in the channel tree and use the client details modal.
-              </p>
+
+                {/* Group List */}
+                <div className="bg-base-200 rounded-lg p-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="font-semibold">Server Groups ({groups.length})</h4>
+                    <button className="btn btn-xs btn-ghost" onClick={loadGroups}>Refresh</button>
+                  </div>
+                  {groups.length === 0 ? (
+                    <p className="text-base-content/50 text-center py-4">No server groups found</p>
+                  ) : (
+                    <div className="space-y-1 max-h-80 overflow-y-auto">
+                      {groups.map((group) => (
+                        <div 
+                          key={group.sgid} 
+                          className={`flex items-center gap-2 p-2 rounded cursor-pointer hover:bg-base-300 ${selectedGroup?.sgid === group.sgid ? 'bg-primary/20 border border-primary' : 'bg-base-100'}`}
+                          onClick={() => handleSelectGroup(group)}
+                        >
+                          <span className="badge badge-sm badge-primary">{group.sgid}</span>
+                          <span className="flex-1 truncate">{group.name}</span>
+                          <span className="text-xs text-base-content/50">
+                            {group.type === 0 ? 'Template' : group.type === 1 ? 'Regular' : 'Query'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right: Group Details */}
+              <div className="w-1/2">
+                {selectedGroup ? (
+                  <div className="bg-base-200 rounded-lg p-4 h-full">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h4 className="font-semibold text-lg">{selectedGroup.name}</h4>
+                        <p className="text-xs text-base-content/50">
+                          ID: {selectedGroup.sgid} • Type: {selectedGroup.type === 0 ? 'Template' : selectedGroup.type === 1 ? 'Regular' : 'Query'}
+                        </p>
+                      </div>
+                      <button 
+                        className="btn btn-xs btn-error"
+                        onClick={handleDeleteGroup}
+                      >
+                        Delete Group
+                      </button>
+                    </div>
+
+                    {/* Rename */}
+                    <div className="mb-4">
+                      <label className="label label-text text-xs">Rename Group</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          className="input input-sm input-bordered flex-1"
+                          value={renameGroupName}
+                          onChange={(e) => setRenameGroupName(e.target.value)}
+                        />
+                        <button 
+                          className="btn btn-sm btn-ghost"
+                          onClick={handleRenameGroup}
+                          disabled={!renameGroupName.trim() || renameGroupName === selectedGroup.name}
+                        >
+                          Rename
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Add Member */}
+                    <div className="mb-4">
+                      <label className="label label-text text-xs">Add Member (Client Database ID)</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Client DB ID"
+                          className="input input-sm input-bordered flex-1"
+                          value={addMemberCldbid}
+                          onChange={(e) => setAddMemberCldbid(e.target.value)}
+                        />
+                        <button 
+                          className="btn btn-sm btn-primary"
+                          onClick={handleAddMember}
+                          disabled={!addMemberCldbid.trim()}
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Members List */}
+                    <div className="mb-4">
+                      <label className="label label-text text-xs">
+                        Members ({groupMembers.length})
+                        {groupMembersLoading && <span className="loading loading-spinner loading-xs ml-2"></span>}
+                      </label>
+                      <div className="bg-base-100 rounded max-h-32 overflow-y-auto">
+                        {groupMembers.length === 0 ? (
+                          <p className="text-center text-base-content/50 py-2 text-sm">No members</p>
+                        ) : (
+                          <div className="divide-y divide-base-300">
+                            {groupMembers.map((member) => (
+                              <div key={member.cldbid} className="flex items-center justify-between p-2">
+                                <div>
+                                  <span className="font-medium">{member.client_nickname || 'Unknown'}</span>
+                                  <span className="text-xs text-base-content/50 ml-2">#{member.cldbid}</span>
+                                </div>
+                                <button 
+                                  className="btn btn-xs btn-ghost text-error"
+                                  onClick={() => handleRemoveMember(member.cldbid, member.client_nickname)}
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Permissions Button */}
+                    <div className="border-t border-base-300 pt-4">
+                      <button 
+                        className="btn btn-sm btn-secondary w-full"
+                        onClick={() => setIsPermissionsModalOpen(true)}
+                      >
+                        🔐 Manage Permissions
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-base-200 rounded-lg p-4 h-full flex items-center justify-center">
+                    <p className="text-base-content/50">Select a group to view details</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -500,6 +803,14 @@ export default function AdminPanel({ connectionId, channels, isOpen, onClose, on
           )}
         </div>
       </div>
+
+      {/* Group Permissions Modal */}
+      <GroupPermissionsModal
+        connectionId={connectionId}
+        group={selectedGroup}
+        isOpen={isPermissionsModalOpen}
+        onClose={() => setIsPermissionsModalOpen(false)}
+      />
     </div>
   )
 }
