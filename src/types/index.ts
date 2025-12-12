@@ -413,6 +413,12 @@ declare global {
       createDirectory: (connectionId: string, cid: number, cpw?: string, dirname?: string) => Promise<SimpleResult>
       deleteFile: (connectionId: string, cid: number, cpw?: string, name?: string) => Promise<SimpleResult>
       renameFile: (connectionId: string, cid: number, cpw?: string, oldName?: string, newName?: string) => Promise<SimpleResult>
+      // App Info & Updates
+      getAppVersion: () => Promise<string>
+      checkForUpdates: () => Promise<{ updateAvailable: boolean; currentVersion: string; latestVersion?: string; releaseNotes?: string; error?: string }>
+      downloadUpdate: () => Promise<{ success: boolean; error?: string }>
+      installUpdate: () => void
+      openExternalUrl: (url: string) => Promise<void>
     }
   }
 }

@@ -94,7 +94,7 @@ If you want to contribute or run from source:
 ### Setup
 
 ```bash
-git clone https://github.com/your-username/ts3-vetinari.git
+git clone https://github.com/ehrma/ts3-vetinari.git
 cd ts3-vetinari
 npm install
 ```

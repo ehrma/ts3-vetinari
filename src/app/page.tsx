@@ -142,7 +142,7 @@ export default function Home() {
         <div className="p-4 border-b border-base-300">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <img src="/logo.png" alt="TS3 Vetinari" className="w-8 h-8" />
+              <img src="./logo.png" alt="TS3 Vetinari" className="w-8 h-8" />
               <div>
                 <h1 className="text-lg font-bold text-primary leading-tight">TS3 Vetinari</h1>
                 <p className="text-xs text-base-content/50 leading-tight">A TeamSpeak3 Serveradmin Utility</p>

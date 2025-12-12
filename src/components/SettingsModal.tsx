@@ -14,8 +14,19 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [autoRefreshInterval, setAutoRefreshInterval] = useState('0')
   const [showOfflineClients, setShowOfflineClients] = useState(false)
   const [confirmActions, setConfirmActions] = useState(true)
+  const [appVersion, setAppVersion] = useState('...')
+  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error'>('idle')
+  const [latestVersion, setLatestVersion] = useState('')
+  const [updateError, setUpdateError] = useState('')
 
   useEffect(() => {
+    // Load app version
+    if (typeof window !== 'undefined' && window.electronAPI?.getAppVersion) {
+      window.electronAPI.getAppVersion().then((version: string) => {
+        setAppVersion(version)
+      })
+    }
+
     // Load settings from localStorage
     const savedTheme = localStorage.getItem('ts-inspect-theme') as Theme
     if (savedTheme) {
@@ -64,6 +75,60 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const handleConfirmActionsChange = (value: boolean) => {
     setConfirmActions(value)
     localStorage.setItem('ts-inspect-confirm-actions', String(value))
+  }
+
+  const handleCheckForUpdates = async () => {
+    if (!window.electronAPI?.checkForUpdates) return
+    
+    setUpdateStatus('checking')
+    setUpdateError('')
+    
+    try {
+      const result = await window.electronAPI.checkForUpdates()
+      if (result.error) {
+        setUpdateStatus('error')
+        setUpdateError(result.error)
+      } else if (result.updateAvailable) {
+        setUpdateStatus('available')
+        setLatestVersion(result.latestVersion || '')
+      } else {
+        setUpdateStatus('idle')
+        setLatestVersion('')
+      }
+    } catch (err) {
+      setUpdateStatus('error')
+      setUpdateError(String(err))
+    }
+  }
+
+  const handleDownloadUpdate = async () => {
+    if (!window.electronAPI?.downloadUpdate) return
+    
+    setUpdateStatus('downloading')
+    try {
+      const result = await window.electronAPI.downloadUpdate()
+      if (result.success) {
+        setUpdateStatus('ready')
+      } else {
+        setUpdateStatus('error')
+        setUpdateError(result.error || 'Download failed')
+      }
+    } catch (err) {
+      setUpdateStatus('error')
+      setUpdateError(String(err))
+    }
+  }
+
+  const handleInstallUpdate = () => {
+    if (window.electronAPI?.installUpdate) {
+      window.electronAPI.installUpdate()
+    }
+  }
+
+  const handleOpenGitHub = () => {
+    if (window.electronAPI?.openExternalUrl) {
+      window.electronAPI.openExternalUrl('https://github.com/ehrma/ts3-vetinari')
+    }
   }
 
   if (!isOpen) return null
@@ -192,12 +257,77 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             </h4>
             <div className="bg-base-200 rounded-lg p-4">
               <div className="text-center">
-                <img src="/logo.png" alt="TS3 Vetinari" className="w-16 h-16 mx-auto mb-2" />
+                <img src="./logo.png" alt="TS3 Vetinari" className="w-16 h-16 mx-auto mb-2" />
                 <h5 className="font-bold text-lg">TS3 Vetinari</h5>
-                <p className="text-sm text-base-content/60">Version 1.0.0</p>
+                <p className="text-sm text-base-content/60">Version {appVersion}</p>
                 <p className="text-xs text-base-content/50 mt-2">
                   A TeamSpeak3 Serveradmin Utility
                 </p>
+                
+                <div className="mt-4 space-y-2">
+                  <button
+                    className="btn btn-sm btn-outline w-full"
+                    onClick={handleOpenGitHub}
+                  >
+                    🔗 View on GitHub
+                  </button>
+                  
+                  {updateStatus === 'idle' && (
+                    <button
+                      className="btn btn-sm btn-outline w-full"
+                      onClick={handleCheckForUpdates}
+                    >
+                      🔄 Check for Updates
+                    </button>
+                  )}
+                  
+                  {updateStatus === 'checking' && (
+                    <button className="btn btn-sm btn-outline w-full" disabled>
+                      <span className="loading loading-spinner loading-xs"></span>
+                      Checking...
+                    </button>
+                  )}
+                  
+                  {updateStatus === 'available' && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-success">✓ Update available: v{latestVersion}</p>
+                      <button
+                        className="btn btn-sm btn-primary w-full"
+                        onClick={handleDownloadUpdate}
+                      >
+                        ⬇️ Download Update
+                      </button>
+                    </div>
+                  )}
+                  
+                  {updateStatus === 'downloading' && (
+                    <button className="btn btn-sm btn-primary w-full" disabled>
+                      <span className="loading loading-spinner loading-xs"></span>
+                      Downloading...
+                    </button>
+                  )}
+                  
+                  {updateStatus === 'ready' && (
+                    <button
+                      className="btn btn-sm btn-success w-full"
+                      onClick={handleInstallUpdate}
+                    >
+                      🚀 Restart & Install
+                    </button>
+                  )}
+                  
+                  {updateStatus === 'error' && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-error">Error: {updateError}</p>
+                      <button
+                        className="btn btn-sm btn-outline w-full"
+                        onClick={handleCheckForUpdates}
+                      >
+                        🔄 Try Again
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

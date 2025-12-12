@@ -66,4 +66,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createDirectory: (connectionId, cid, cpw, dirname) => ipcRenderer.invoke('create-directory', { connectionId, cid, cpw, dirname }),
   deleteFile: (connectionId, cid, cpw, name) => ipcRenderer.invoke('delete-file', { connectionId, cid, cpw, name }),
   renameFile: (connectionId, cid, cpw, oldName, newName) => ipcRenderer.invoke('rename-file', { connectionId, cid, cpw, oldName, newName }),
+  // App Info & Updates
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  openExternalUrl: (url) => ipcRenderer.invoke('open-external-url', url),
 })

@@ -1,6 +1,11 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
 const { TeamSpeak } = require('ts3-nodejs-library')
+const { autoUpdater } = require('electron-updater')
+
+// Configure auto-updater
+autoUpdater.autoDownload = false
+autoUpdater.autoInstallOnAppQuit = true
 
 let store = null
 async function getStore() {
@@ -88,11 +93,49 @@ function createWindow() {
 app.whenReady().then(() => {
   createWindow()
 
+  // Check for updates in production
+  if (process.env.NODE_ENV !== 'development') {
+    autoUpdater.checkForUpdates().catch(() => {
+      // Silently fail if update check fails
+    })
+  }
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
     }
   })
+})
+
+// Auto-updater events
+autoUpdater.on('update-available', (info) => {
+  dialog.showMessageBox({
+    type: 'info',
+    title: 'Update Available',
+    message: `A new version (${info.version}) is available. Would you like to download it now?`,
+    buttons: ['Download', 'Later']
+  }).then((result) => {
+    if (result.response === 0) {
+      autoUpdater.downloadUpdate()
+    }
+  })
+})
+
+autoUpdater.on('update-downloaded', (info) => {
+  dialog.showMessageBox({
+    type: 'info',
+    title: 'Update Ready',
+    message: `Version ${info.version} has been downloaded. The application will restart to install the update.`,
+    buttons: ['Restart Now', 'Later']
+  }).then((result) => {
+    if (result.response === 0) {
+      autoUpdater.quitAndInstall()
+    }
+  })
+})
+
+autoUpdater.on('error', (error) => {
+  console.log('Auto-updater error:', error.message)
 })
 
 app.on('window-all-closed', () => {
@@ -108,6 +151,46 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+// IPC Handlers for app info
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion()
+})
+
+ipcMain.handle('check-for-updates', async () => {
+  try {
+    const result = await autoUpdater.checkForUpdates()
+    if (result && result.updateInfo) {
+      return {
+        updateAvailable: result.updateInfo.version !== app.getVersion(),
+        currentVersion: app.getVersion(),
+        latestVersion: result.updateInfo.version,
+        releaseNotes: result.updateInfo.releaseNotes || ''
+      }
+    }
+    return { updateAvailable: false, currentVersion: app.getVersion() }
+  } catch (error) {
+    return { updateAvailable: false, currentVersion: app.getVersion(), error: error.message }
+  }
+})
+
+ipcMain.handle('download-update', async () => {
+  try {
+    await autoUpdater.downloadUpdate()
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle('install-update', () => {
+  autoUpdater.quitAndInstall()
+})
+
+ipcMain.handle('open-external-url', async (event, url) => {
+  const { shell } = require('electron')
+  await shell.openExternal(url)
 })
 
 // IPC Handlers for connection storage
