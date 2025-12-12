@@ -1,6 +1,6 @@
 {
   "name": "ts3-vetinari",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "A TeamSpeak3 Serveradmin Utility",
   "main": "electron/main.js",
   "scripts": {
@@ -52,16 +52,30 @@
     "files": [
       "electron/**/*",
       "out/**/*",
+      "public/**/*",
       "node_modules/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "public/logo.png",
+        "to": "logo.png"
+      }
+    ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "public/logo.png"
     },
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "icon": "public/logo.png"
     },
     "linux": {
-      "target": "AppImage"
+      "target": "AppImage",
+      "icon": "public/logo.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     }
   }
 }
