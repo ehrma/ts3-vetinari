@@ -1,0 +1,67 @@
+{
+  "name": "ts-inspect",
+  "version": "1.0.0",
+  "description": "TeamSpeak 3 Server Management Tool",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "electron": "electron .",
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && cross-env NODE_ENV=development electron .\"",
+    "electron:build": "npm run build && electron-builder",
+    "lint": "next lint"
+  },
+  "keywords": [
+    "teamspeak",
+    "ts3",
+    "server",
+    "management"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/node": "^25.0.0",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "daisyui": "^4.12.24",
+    "electron": "^39.2.6",
+    "electron-builder": "^26.0.12",
+    "electron-store": "^11.0.2",
+    "next": "^16.0.8",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "ts-node": "^10.9.2",
+    "ts3-nodejs-library": "^3.5.1",
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.22",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19",
+    "wait-on": "^9.0.3"
+  },
+  "build": {
+    "appId": "com.ts3inspect.app",
+    "productName": "TS3 Inspect",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "out/**/*",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}
