@@ -126,7 +126,7 @@ Builds are output to the `dist/` directory.
 
 ## License
 
-ISC
+MIT License - see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
